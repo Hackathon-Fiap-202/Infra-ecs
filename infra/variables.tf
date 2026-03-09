@@ -65,33 +65,8 @@ variable "docdb_secret_arn" {
   type        = string
 }
 
-variable "docdb_master_username" {
-  description = "DocumentDB master username"
-  type        = string
-  default     = "nexadmin"
-}
-
-variable "docdb_master_password" {
-  description = "DocumentDB master password"
-  type        = string
-  sensitive   = true
-}
-
 # ─── SQS ─────────────────────────────────────────────────────────────────────
-variable "sqs_video_process_command_url" {
-  description = "SQS URL for video-process-command queue"
-  type        = string
-}
-
-variable "sqs_video_updated_event_url" {
-  description = "SQS URL for video-updated-event queue"
-  type        = string
-}
-
-variable "sqs_video_processed_event_url" {
-  description = "SQS URL for video-processed-event queue"
-  type        = string
-}
+# SQS URLs are constructed dynamically in locals from var.aws_account_id + var.aws_region
 
 # ─── S3 ──────────────────────────────────────────────────────────────────────
 variable "s3_bucket_video_input" {

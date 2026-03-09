@@ -69,5 +69,7 @@ jobs:
         working-directory: infra
 
       - name: Terraform Plan
-        run: terraform plan
+        run: |
+          terraform plan \
+            -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}"
         working-directory: infra

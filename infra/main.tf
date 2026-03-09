@@ -17,6 +17,12 @@ locals {
   process_video_ecr_url       = data.terraform_remote_state.infra_core.outputs.process_video_ecr_url
   docdb_endpoint              = data.terraform_remote_state.infra_core.outputs.docdb_endpoint
   docdb_secret_arn            = data.terraform_remote_state.infra_core.outputs.docdb_secret_arn
+
+  # SQS URLs constructed from account/region — no hardcoding in tfvars
+  sqs_base                      = "https://sqs.${var.aws_region}.amazonaws.com/${var.aws_account_id}"
+  sqs_video_process_command_url = "${local.sqs_base}/video-process-command"
+  sqs_video_updated_event_url   = "${local.sqs_base}/video-updated-event"
+  sqs_video_processed_event_url = "${local.sqs_base}/video-processed-event"
 }
 
 # ─── ECS Cluster ─────────────────────────────────────────────────────────────
@@ -87,8 +93,14 @@ resource "aws_ecs_task_definition" "ms_video" {
         { name = "SPRING_CLOUD_S3_BUCKET_NAME", value = var.s3_bucket_video_input },
         { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_PROCESS_EVENT", value = "video-processed-event" },
         { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_PROCESS_COMMAND", value = "video-process-command" },
-        { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_UPDATED_EVENT", value = "video-updated-event" },
-        { name = "MONGO_URI", value = "mongodb://${var.docdb_master_username}:${var.docdb_master_password}@${local.docdb_endpoint}:27017/msvideo?authSource=admin&tls=false" }
+        { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_UPDATED_EVENT", value = "video-updated-event" }
+      ]
+
+      secrets = [
+        {
+          name      = "MONGO_URI"
+          valueFrom = "${local.docdb_secret_arn}:mongo_uri::"
+        }
       ]
 
       logConfiguration = {
@@ -141,8 +153,8 @@ resource "aws_ecs_task_definition" "process_video" {
         { name = "SERVER_PORT", value = tostring(var.process_video_port) },
         { name = "AWS_REGION", value = var.aws_region },
         { name = "SPRING_CLOUD_AWS_REGION_STATIC", value = var.aws_region },
-        { name = "SQS_VIDEO_PROCESS_COMMAND_URL", value = var.sqs_video_process_command_url },
-        { name = "SQS_VIDEO_UPDATED_EVENT_URL", value = var.sqs_video_updated_event_url },
+        { name = "SQS_VIDEO_PROCESS_COMMAND_URL", value = local.sqs_video_process_command_url },
+        { name = "SQS_VIDEO_UPDATED_EVENT_URL", value = local.sqs_video_updated_event_url },
         { name = "APP_BUCKETS_VIDEO_INPUT_STORAGE", value = var.s3_bucket_video_input },
         { name = "APP_BUCKETS_VIDEO_PROCESSED_STORAGE", value = var.s3_bucket_video_processed }
       ]
