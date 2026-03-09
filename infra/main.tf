@@ -2,21 +2,19 @@
 data "terraform_remote_state" "infra_core" {
   backend = "s3"
   config = {
-    bucket = "nextime-frame-state-bucket"
+    bucket = "nextime-frame-state-bucket-s3"
     key    = "infra-core/infra.tfstate"
     region = "us-east-1"
   }
 }
 
 locals {
-  vpc_id                      = data.terraform_remote_state.infra_core.outputs.vpc_id
-  private_subnet_ids          = data.terraform_remote_state.infra_core.outputs.private_subnet_ids
-  public_subnet_ids           = data.terraform_remote_state.infra_core.outputs.public_subnet_ids
-  ecs_tasks_security_group_id = data.terraform_remote_state.infra_core.outputs.ecs_tasks_security_group_id
-  ms_video_ecr_url            = data.terraform_remote_state.infra_core.outputs.ms_video_ecr_url
-  process_video_ecr_url       = data.terraform_remote_state.infra_core.outputs.process_video_ecr_url
-  docdb_endpoint              = data.terraform_remote_state.infra_core.outputs.docdb_endpoint
-  docdb_secret_arn            = data.terraform_remote_state.infra_core.outputs.docdb_secret_arn
+  vpc_id                = data.terraform_remote_state.infra_core.outputs.vpc_id
+  private_subnet_ids    = data.terraform_remote_state.infra_core.outputs.private_subnet_ids
+  public_subnet_ids     = data.terraform_remote_state.infra_core.outputs.public_subnet_ids
+  ms_video_ecr_url      = data.terraform_remote_state.infra_core.outputs.ms_video_ecr_url
+  process_video_ecr_url = data.terraform_remote_state.infra_core.outputs.process_video_ecr_url
+  docdb_secret_arn      = data.terraform_remote_state.infra_core.outputs.docdb_secret_arn
 
   # SQS URLs constructed from account/region — no hardcoding in tfvars
   sqs_base                      = "https://sqs.${var.aws_region}.amazonaws.com/${var.aws_account_id}"
@@ -196,7 +194,7 @@ resource "aws_ecs_service" "ms_video" {
 
   network_configuration {
     subnets          = local.private_subnet_ids
-    security_groups  = [local.ecs_tasks_security_group_id, aws_security_group.ecs_tasks_app.id]
+    security_groups  = [aws_security_group.ecs_tasks_app.id]
     assign_public_ip = false
   }
 
@@ -233,7 +231,7 @@ resource "aws_ecs_service" "process_video" {
 
   network_configuration {
     subnets          = local.private_subnet_ids
-    security_groups  = [local.ecs_tasks_security_group_id, aws_security_group.ecs_tasks_app.id]
+    security_groups  = [aws_security_group.ecs_tasks_app.id]
     assign_public_ip = false
   }
 

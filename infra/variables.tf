@@ -17,36 +17,10 @@ variable "tags" {
 }
 
 # ─── Networking (from infra-core remote state) ───────────────────────────────
-variable "vpc_id" {
-  description = "VPC ID from infra-core"
-  type        = string
-}
-
-variable "private_subnet_ids" {
-  description = "Private subnet IDs for ECS tasks"
-  type        = list(string)
-}
-
-variable "public_subnet_ids" {
-  description = "Public subnet IDs for the ALB"
-  type        = list(string)
-}
-
-variable "ecs_tasks_security_group_id" {
-  description = "Security group ID for ECS Fargate tasks (from infra-core)"
-  type        = string
-}
+# vpc_id, private_subnet_ids, public_subnet_ids are consumed via remote state locals — no vars needed
 
 # ─── ECR ─────────────────────────────────────────────────────────────────────
-variable "ms_video_ecr_url" {
-  description = "ECR URL for ms-video image"
-  type        = string
-}
-
-variable "process_video_ecr_url" {
-  description = "ECR URL for process-video image"
-  type        = string
-}
+# ms_video_ecr_url and process_video_ecr_url are consumed via remote state locals — no vars needed
 
 variable "image_tag" {
   description = "Docker image tag to deploy"
@@ -54,16 +28,8 @@ variable "image_tag" {
   default     = "latest"
 }
 
-# ─── DocumentDB ──────────────────────────────────────────────────────────────
-variable "docdb_endpoint" {
-  description = "DocumentDB cluster endpoint"
-  type        = string
-}
-
-variable "docdb_secret_arn" {
-  description = "Secrets Manager ARN for DocumentDB credentials"
-  type        = string
-}
+# ─── Secrets Manager (from infra-core remote state) ─────────────────────────
+# docdb_secret_arn is consumed via remote state locals — no var needed
 
 # ─── SQS ─────────────────────────────────────────────────────────────────────
 # SQS URLs are constructed dynamically in locals from var.aws_account_id + var.aws_region
