@@ -95,10 +95,8 @@ resource "aws_iam_policy" "ecs_task_policy" {
           "s3:ListBucket"
         ]
         Resource = [
-          "arn:aws:s3:::${var.s3_bucket_video_input}",
-          "arn:aws:s3:::${var.s3_bucket_video_input}/*",
-          "arn:aws:s3:::${var.s3_bucket_video_processed}",
-          "arn:aws:s3:::${var.s3_bucket_video_processed}/*"
+          "arn:aws:s3:::${var.s3_bucket_name}",
+          "arn:aws:s3:::${var.s3_bucket_name}/*"
         ]
       },
       # Cognito (used by ms-video to look up user emails)

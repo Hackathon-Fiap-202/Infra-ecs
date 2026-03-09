@@ -102,7 +102,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Todos os recursos ECS foram removidos." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "State preservado em: s3://nextime-frame-state-bucket/infra-ecs/infra.tfstate" >> $GITHUB_STEP_SUMMARY
+          echo "State preservado em: s3://nextime-frame-state-bucket-s3/infra-ecs/infra.tfstate" >> $GITHUB_STEP_SUMMARY
 
       - name: Notify failure
         if: failure()

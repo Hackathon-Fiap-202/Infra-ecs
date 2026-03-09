@@ -88,7 +88,8 @@ resource "aws_ecs_task_definition" "ms_video" {
         { name = "SERVER_PORT", value = tostring(var.ms_video_port) },
         { name = "AWS_REGION", value = var.aws_region },
         { name = "SPRING_CLOUD_AWS_REGION_STATIC", value = var.aws_region },
-        { name = "SPRING_CLOUD_S3_BUCKET_NAME", value = var.s3_bucket_video_input },
+        { name = "SPRING_CLOUD_S3_BUCKET_NAME", value = var.s3_bucket_name },
+        { name = "SPRING_CLOUD_S3_INPUT_PREFIX", value = var.s3_input_prefix },
         { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_PROCESS_EVENT", value = "video-processed-event" },
         { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_PROCESS_COMMAND", value = "video-process-command" },
         { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_UPDATED_EVENT", value = "video-updated-event" }
@@ -153,8 +154,9 @@ resource "aws_ecs_task_definition" "process_video" {
         { name = "SPRING_CLOUD_AWS_REGION_STATIC", value = var.aws_region },
         { name = "SQS_VIDEO_PROCESS_COMMAND_URL", value = local.sqs_video_process_command_url },
         { name = "SQS_VIDEO_UPDATED_EVENT_URL", value = local.sqs_video_updated_event_url },
-        { name = "APP_BUCKETS_VIDEO_INPUT_STORAGE", value = var.s3_bucket_video_input },
-        { name = "APP_BUCKETS_VIDEO_PROCESSED_STORAGE", value = var.s3_bucket_video_processed }
+        { name = "APP_BUCKETS_VIDEO_BUCKET_NAME", value = var.s3_bucket_name },
+        { name = "APP_BUCKETS_VIDEO_INPUT_PREFIX", value = var.s3_input_prefix },
+        { name = "APP_BUCKETS_VIDEO_PROCESSED_PREFIX", value = var.s3_processed_prefix }
       ]
 
       logConfiguration = {

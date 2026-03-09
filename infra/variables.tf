@@ -35,16 +35,22 @@ variable "image_tag" {
 # SQS URLs are constructed dynamically in locals from var.aws_account_id + var.aws_region
 
 # ─── S3 ──────────────────────────────────────────────────────────────────────
-variable "s3_bucket_video_input" {
-  description = "S3 bucket for video input"
+variable "s3_bucket_name" {
+  description = "Single S3 bucket for all video storage"
   type        = string
-  default     = "video-input-storage"
+  default     = "nextime-frame-video-storage"
 }
 
-variable "s3_bucket_video_processed" {
-  description = "S3 bucket for processed video output"
+variable "s3_input_prefix" {
+  description = "S3 key prefix for input videos"
   type        = string
-  default     = "video-processed-storage"
+  default     = "video-input-storage/"
+}
+
+variable "s3_processed_prefix" {
+  description = "S3 key prefix for processed video output"
+  type        = string
+  default     = "video-processed-storage/"
 }
 
 # ─── Application ports ───────────────────────────────────────────────────────
