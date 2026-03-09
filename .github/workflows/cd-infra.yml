@@ -1,0 +1,70 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+
+concurrency:
+  group: terraform-ecs-deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+jobs:
+  deploy-to-aws:
+    name: Terraform Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Cache Terraform providers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            infra/.terraform
+          key: ${{ runner.os }}-terraform-ecs-${{ hashFiles('infra/**/*.tf*') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-ecs-
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-action-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -diff || true
+        working-directory: infra
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: infra
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: infra
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: infra

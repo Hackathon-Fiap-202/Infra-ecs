@@ -1,0 +1,118 @@
+name: Destroy ECS Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Digite DESTROY para confirmar a destruicao completa'
+        required: true
+        type: string
+
+concurrency:
+  group: terraform-ecs-deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  ECS_CLUSTER: nextime-frame-cluster
+
+jobs:
+  terraform-destroy:
+    name: Destroy - ECS Infrastructure
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.event.inputs.confirm == 'DESTROY'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-action-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra
+
+      - name: Terraform Plan Destroy
+        run: terraform plan -destroy -out=tfplan-destroy
+        working-directory: infra
+
+      - name: Destruction warning
+        run: |
+          echo "## ATENCAO: Destruicao de Infraestrutura ECS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Os seguintes recursos serao DESTRUIDOS:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ECS Cluster: ${{ env.ECS_CLUSTER }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ECS Service: ms-video" >> $GITHUB_STEP_SUMMARY
+          echo "- ECS Service: process-video" >> $GITHUB_STEP_SUMMARY
+          echo "- Task Definitions: ms-video, process-video" >> $GITHUB_STEP_SUMMARY
+          echo "- Internal ALB + Target Groups + Listeners" >> $GITHUB_STEP_SUMMARY
+          echo "- Security Groups (ALB + ECS tasks)" >> $GITHUB_STEP_SUMMARY
+          echo "- Auto Scaling targets and policies" >> $GITHUB_STEP_SUMMARY
+          echo "- IAM Roles (execution + task)" >> $GITHUB_STEP_SUMMARY
+          echo "- CloudWatch Log Groups" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ESTA ACAO E IRREVERSIVEL!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Aguardando 10 segundos antes de continuar..." >> $GITHUB_STEP_SUMMARY
+          sleep 10
+
+      - name: Terraform Destroy
+        id: destroy
+        run: |
+          terraform destroy -auto-approve
+          echo "destroy_success=true" >> $GITHUB_OUTPUT
+        working-directory: infra
+
+      - name: Verify ECS cluster removed
+        if: steps.destroy.outputs.destroy_success == 'true'
+        run: |
+          echo "## Verificacao Pos-Destruicao" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if aws ecs describe-clusters \
+              --clusters ${{ env.ECS_CLUSTER }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'clusters[?status==`ACTIVE`]' \
+              --output text 2>/dev/null | grep -q .; then
+            echo "AVISO: Cluster ainda ativo!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Cluster removido com sucesso" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Destroy summary
+        if: steps.destroy.outputs.destroy_success == 'true'
+        run: |
+          echo "## Destruicao Concluida" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Todos os recursos ECS foram removidos." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "State preservado em: s3://nextime-frame-state-bucket/infra-ecs/infra.tfstate" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "## Destruicao Falhou" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Alguns recursos podem nao ter sido removidos." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Acoes recomendadas:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verificar recursos orfaos no console AWS" >> $GITHUB_STEP_SUMMARY
+          echo "2. Verificar se ECS services ainda tem tasks rodando" >> $GITHUB_STEP_SUMMARY
+          echo "3. Remover manualmente se necessario" >> $GITHUB_STEP_SUMMARY
+          echo "4. Tentar executar destroy novamente" >> $GITHUB_STEP_SUMMARY
