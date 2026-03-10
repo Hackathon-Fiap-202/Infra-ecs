@@ -83,3 +83,15 @@ variable "aws_account_id" {
   description = "AWS Account ID"
   type        = string
 }
+
+variable "task_cpu" {
+  description = "CPU units for ECS tasks (4096 = 4 vCPU)"
+  type        = string
+  default     = "4096"
+}
+
+variable "task_memory" {
+  description = "Memory in MB for ECS tasks"
+  type        = string
+  default     = "8192"
+}
