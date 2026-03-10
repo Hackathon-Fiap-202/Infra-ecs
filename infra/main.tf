@@ -16,11 +16,22 @@ locals {
   process_video_ecr_url = data.terraform_remote_state.infra_core.outputs.process_video_ecr_url
   docdb_secret_arn      = data.terraform_remote_state.infra_core.outputs.docdb_secret_arn
 
+  # Datadog secret ARN flows in automatically from infra-core remote state —
+  # no manual copy-paste or -var flag needed in this stack.
+  datadog_api_key_secret_arn = data.terraform_remote_state.infra_core.outputs.datadog_api_key_secret_arn
+
   # SQS URLs constructed from account/region — no hardcoding in tfvars
   sqs_base                      = "https://sqs.${var.aws_region}.amazonaws.com/${var.aws_account_id}"
   sqs_video_process_command_url = "${local.sqs_base}/video-process-command"
   sqs_video_updated_event_url   = "${local.sqs_base}/video-updated-event"
   sqs_video_processed_event_url = "${local.sqs_base}/video-processed-event"
+}
+
+# ─── Datadog API Key (from infra-core remote state) ──────────────────────────
+# The secret is created and managed by infra-core/modules/datadog.
+# Its ARN is pulled automatically via remote state — no manual step needed.
+data "aws_secretsmanager_secret_version" "datadog_api_key" {
+  secret_id = local.datadog_api_key_secret_arn
 }
 
 # ─── ECS Cluster ─────────────────────────────────────────────────────────────
@@ -48,6 +59,8 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
 }
 
 # ─── CloudWatch Log Groups ───────────────────────────────────────────────────
+# Used by the Datadog agent sidecar and Fluent Bit router for their own logs.
+# Application logs are routed to Datadog via FireLens (awsfirelens driver).
 resource "aws_cloudwatch_log_group" "ms_video" {
   name              = "/ecs/${var.project_name}/ms-video"
   retention_in_days = 7
@@ -61,6 +74,7 @@ resource "aws_cloudwatch_log_group" "process_video" {
 }
 
 # ─── Task Definition: ms-video ───────────────────────────────────────────────
+# 3-container pattern: log_router (FireLens) + datadog-agent + ms-video app
 resource "aws_ecs_task_definition" "ms_video" {
   family                   = "ms-video"
   network_mode             = "awsvpc"
@@ -71,10 +85,85 @@ resource "aws_ecs_task_definition" "ms_video" {
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
+    # ── 1. FireLens log router ────────────────────────────────────────────────
+    # Must start before the app container (app dependsOn this with START condition).
+    # Routes application logs to Datadog. Its own logs go to CloudWatch.
+    {
+      name      = "log_router"
+      image     = "amazon/aws-for-fluent-bit:stable"
+      essential = true
+
+      firelensConfiguration = {
+        type = "fluentbit"
+      }
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.ms_video.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "firelens"
+        }
+      }
+
+      # Fluent Bit is lightweight — reserve minimal resources
+      cpu    = 64
+      memory = 128
+    },
+
+    # ── 2. Datadog Agent sidecar ──────────────────────────────────────────────
+    # Collects ECS Fargate metrics and receives APM traces from the app (port 8126).
+    # DD_API_KEY is injected securely from Secrets Manager at task launch.
+    {
+      name      = "datadog-agent"
+      image     = "public.ecr.aws/datadog/agent:latest"
+      essential = true
+
+      environment = [
+        # Tell the agent it is running on ECS Fargate (enables Fargate metrics collection)
+        { name = "ECS_FARGATE", value = "true" },
+        # Datadog intake endpoint — change to datadoghq.eu for EU customers
+        { name = "DD_SITE", value = var.dd_site },
+        # Enable log collection from FireLens-routed container logs
+        { name = "DD_LOGS_ENABLED", value = "true" },
+        # Enable APM trace collection
+        { name = "DD_APM_ENABLED", value = "true" },
+        # Accept traces from other containers in the task (127.0.0.1:8126)
+        { name = "DD_APM_NON_LOCAL_TRAFFIC", value = "true" },
+        # Tag all telemetry with the deployment environment
+        { name = "DD_ENV", value = "prod" }
+      ]
+
+      secrets = [
+        {
+          name      = "DD_API_KEY"
+          valueFrom = local.datadog_api_key_secret_arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.ms_video.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "datadog-agent"
+        }
+      }
+
+      cpu    = 256
+      memory = 512
+    },
+
+    # ── 3. Application container ──────────────────────────────────────────────
     {
       name      = "ms-video"
       image     = "${local.ms_video_ecr_url}:${var.image_tag}"
       essential = true
+
+      # Wait for FireLens to be running before the app starts sending logs
+      dependsOn = [
+        { containerName = "log_router", condition = "START" }
+      ]
 
       portMappings = [
         {
@@ -92,7 +181,13 @@ resource "aws_ecs_task_definition" "ms_video" {
         { name = "SPRING_CLOUD_S3_INPUT_PREFIX", value = var.s3_input_prefix },
         { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_PROCESS_EVENT", value = "video-processed-event" },
         { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_PROCESS_COMMAND", value = "video-process-command" },
-        { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_UPDATED_EVENT", value = "video-updated-event" }
+        { name = "SPRING_CLOUD_SQS_QUEUES_VIDEO_UPDATED_EVENT", value = "video-updated-event" },
+        # ── Datadog APM / Unified Service Tagging ──────────────────────────────
+        # DD_AGENT_HOST points to the Datadog sidecar (same task = 127.0.0.1)
+        { name = "DD_AGENT_HOST", value = "127.0.0.1" },
+        { name = "DD_ENV", value = "prod" },
+        { name = "DD_SERVICE", value = "ms-video" },
+        { name = "DD_VERSION", value = "1.0" }
       ]
 
       secrets = [
@@ -102,12 +197,19 @@ resource "aws_ecs_task_definition" "ms_video" {
         }
       ]
 
+      # Application logs → Datadog via FireLens / Fluent Bit
+      # The apikey is the plain-text secret value (FireLens options do not support
+      # Secrets Manager references natively; the key is not exposed in app code).
       logConfiguration = {
-        logDriver = "awslogs"
+        logDriver = "awsfirelens"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.ms_video.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "ecs"
+          Name       = "datadog"
+          apikey     = data.aws_secretsmanager_secret_version.datadog_api_key.secret_string
+          dd_service = "ms-video"
+          dd_source  = "java"
+          dd_tags    = "env:prod,version:1.0"
+          TLS        = "on"
+          provider   = "ecs"
         }
       }
 
@@ -125,6 +227,7 @@ resource "aws_ecs_task_definition" "ms_video" {
 }
 
 # ─── Task Definition: process-video ──────────────────────────────────────────
+# 3-container pattern: log_router (FireLens) + datadog-agent + process-video app
 resource "aws_ecs_task_definition" "process_video" {
   family                   = "process-video"
   network_mode             = "awsvpc"
@@ -135,10 +238,73 @@ resource "aws_ecs_task_definition" "process_video" {
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
+    # ── 1. FireLens log router ────────────────────────────────────────────────
+    {
+      name      = "log_router"
+      image     = "amazon/aws-for-fluent-bit:stable"
+      essential = true
+
+      firelensConfiguration = {
+        type = "fluentbit"
+      }
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.process_video.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "firelens"
+        }
+      }
+
+      cpu    = 64
+      memory = 128
+    },
+
+    # ── 2. Datadog Agent sidecar ──────────────────────────────────────────────
+    {
+      name      = "datadog-agent"
+      image     = "public.ecr.aws/datadog/agent:latest"
+      essential = true
+
+      environment = [
+        { name = "ECS_FARGATE", value = "true" },
+        { name = "DD_SITE", value = var.dd_site },
+        { name = "DD_LOGS_ENABLED", value = "true" },
+        { name = "DD_APM_ENABLED", value = "true" },
+        { name = "DD_APM_NON_LOCAL_TRAFFIC", value = "true" },
+        { name = "DD_ENV", value = "prod" }
+      ]
+
+      secrets = [
+        {
+          name      = "DD_API_KEY"
+          valueFrom = local.datadog_api_key_secret_arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.process_video.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "datadog-agent"
+        }
+      }
+
+      cpu    = 256
+      memory = 512
+    },
+
+    # ── 3. Application container ──────────────────────────────────────────────
     {
       name      = "process-video"
       image     = "${local.process_video_ecr_url}:${var.image_tag}"
       essential = true
+
+      dependsOn = [
+        { containerName = "log_router", condition = "START" }
+      ]
 
       portMappings = [
         {
@@ -156,15 +322,24 @@ resource "aws_ecs_task_definition" "process_video" {
         { name = "SQS_VIDEO_UPDATED_EVENT_URL", value = local.sqs_video_updated_event_url },
         { name = "APP_BUCKETS_VIDEO_BUCKET_NAME", value = var.s3_bucket_name },
         { name = "APP_BUCKETS_VIDEO_INPUT_PREFIX", value = var.s3_input_prefix },
-        { name = "APP_BUCKETS_VIDEO_PROCESSED_PREFIX", value = var.s3_processed_prefix }
+        { name = "APP_BUCKETS_VIDEO_PROCESSED_PREFIX", value = var.s3_processed_prefix },
+        # ── Datadog APM / Unified Service Tagging ──────────────────────────────
+        { name = "DD_AGENT_HOST", value = "127.0.0.1" },
+        { name = "DD_ENV", value = "prod" },
+        { name = "DD_SERVICE", value = "process-video" },
+        { name = "DD_VERSION", value = "1.0" }
       ]
 
       logConfiguration = {
-        logDriver = "awslogs"
+        logDriver = "awsfirelens"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.process_video.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "ecs"
+          Name       = "datadog"
+          apikey     = data.aws_secretsmanager_secret_version.datadog_api_key.secret_string
+          dd_service = "process-video"
+          dd_source  = "java"
+          dd_tags    = "env:prod,version:1.0"
+          TLS        = "on"
+          provider   = "ecs"
         }
       }
 

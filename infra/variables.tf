@@ -95,3 +95,10 @@ variable "task_memory" {
   type        = string
   default     = "8192"
 }
+
+# ─── Datadog ──────────────────────────────────────────────────────────────────
+variable "dd_site" {
+  description = "Datadog intake site — datadoghq.com (US) or datadoghq.eu (EU)"
+  type        = string
+  default     = "datadoghq.com"
+}
