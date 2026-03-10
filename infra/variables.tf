@@ -102,3 +102,9 @@ variable "dd_site" {
   type        = string
   default     = "datadoghq.com"
 }
+
+variable "datadog_api_key_secret_arn" {
+  description = "Fallback ARN for the Datadog API key secret. Normally resolved automatically from infra-core remote state. Set this only if infra-core has not been applied yet and the remote state output does not exist."
+  type        = string
+  default     = ""
+}

@@ -35,11 +35,11 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
       {
         Effect = "Allow"
         Action = ["secretsmanager:GetSecretValue"]
-        Resource = [
+        Resource = compact([
           local.docdb_secret_arn,
-          # Datadog API key — ARN sourced from infra-core remote state
-          local.datadog_api_key_secret_arn
-        ]
+          # Datadog API key — only included when the secret ARN is known
+          local.datadog_enabled ? local.datadog_api_key_secret_arn : ""
+        ])
       }
     ]
   })
