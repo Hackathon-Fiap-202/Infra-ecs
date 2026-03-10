@@ -95,3 +95,15 @@ variable "task_memory" {
   type        = string
   default     = "8192"
 }
+
+# ─── Datadog ──────────────────────────────────────────────────────────────────
+variable "datadog_api_key_secret_arn" {
+  description = "ARN of the Secrets Manager secret containing the Datadog API key (plain-text value, not key=value)"
+  type        = string
+}
+
+variable "dd_site" {
+  description = "Datadog intake site — datadoghq.com (US) or datadoghq.eu (EU)"
+  type        = string
+  default     = "datadoghq.com"
+}

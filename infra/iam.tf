@@ -24,7 +24,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Allow pulling Secrets Manager secrets (for DocDB credentials)
+# Allow pulling Secrets Manager secrets (for DocDB credentials and Datadog API key)
 resource "aws_iam_role_policy" "ecs_execution_secrets" {
   name = "${var.project_name}-ecs-execution-secrets"
   role = aws_iam_role.ecs_execution_role.id
@@ -33,9 +33,14 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [local.docdb_secret_arn]
+        Effect = "Allow"
+        Action = ["secretsmanager:GetSecretValue"]
+        Resource = [
+          local.docdb_secret_arn,
+          # Datadog API key — read by ECS agent to inject DD_API_KEY into the
+          # datadog-agent sidecar at task launch via the secrets: block
+          var.datadog_api_key_secret_arn
+        ]
       }
     ]
   })
