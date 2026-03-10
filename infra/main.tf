@@ -16,6 +16,10 @@ locals {
   process_video_ecr_url = data.terraform_remote_state.infra_core.outputs.process_video_ecr_url
   docdb_secret_arn      = data.terraform_remote_state.infra_core.outputs.docdb_secret_arn
 
+  # Datadog secret ARN flows in automatically from infra-core remote state —
+  # no manual copy-paste or -var flag needed in this stack.
+  datadog_api_key_secret_arn = data.terraform_remote_state.infra_core.outputs.datadog_api_key_secret_arn
+
   # SQS URLs constructed from account/region — no hardcoding in tfvars
   sqs_base                      = "https://sqs.${var.aws_region}.amazonaws.com/${var.aws_account_id}"
   sqs_video_process_command_url = "${local.sqs_base}/video-process-command"
@@ -23,14 +27,11 @@ locals {
   sqs_video_processed_event_url = "${local.sqs_base}/video-processed-event"
 }
 
-# ─── Datadog API Key (from Secrets Manager) ───────────────────────────────────
-# The secret must exist before terraform apply. Create it once with:
-#   aws secretsmanager create-secret \
-#     --name datadog-api-key \
-#     --secret-string "<YOUR_DD_API_KEY>" \
-#     --region us-east-1
+# ─── Datadog API Key (from infra-core remote state) ──────────────────────────
+# The secret is created and managed by infra-core/modules/datadog.
+# Its ARN is pulled automatically via remote state — no manual step needed.
 data "aws_secretsmanager_secret_version" "datadog_api_key" {
-  secret_id = var.datadog_api_key_secret_arn
+  secret_id = local.datadog_api_key_secret_arn
 }
 
 # ─── ECS Cluster ─────────────────────────────────────────────────────────────
@@ -136,7 +137,7 @@ resource "aws_ecs_task_definition" "ms_video" {
       secrets = [
         {
           name      = "DD_API_KEY"
-          valueFrom = var.datadog_api_key_secret_arn
+          valueFrom = local.datadog_api_key_secret_arn
         }
       ]
 
@@ -149,7 +150,6 @@ resource "aws_ecs_task_definition" "ms_video" {
         }
       }
 
-      # Datadog agent resource reservation (stays within the 4096/8192 task budget)
       cpu    = 256
       memory = 512
     },
@@ -279,7 +279,7 @@ resource "aws_ecs_task_definition" "process_video" {
       secrets = [
         {
           name      = "DD_API_KEY"
-          valueFrom = var.datadog_api_key_secret_arn
+          valueFrom = local.datadog_api_key_secret_arn
         }
       ]
 

@@ -37,9 +37,8 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
         Action = ["secretsmanager:GetSecretValue"]
         Resource = [
           local.docdb_secret_arn,
-          # Datadog API key — read by ECS agent to inject DD_API_KEY into the
-          # datadog-agent sidecar at task launch via the secrets: block
-          var.datadog_api_key_secret_arn
+          # Datadog API key — ARN sourced from infra-core remote state
+          local.datadog_api_key_secret_arn
         ]
       }
     ]
