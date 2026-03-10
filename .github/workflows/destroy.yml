@@ -76,7 +76,7 @@ jobs:
       - name: Terraform Destroy
         id: destroy
         run: |
-          terraform destroy -auto-approve
+          terraform destroy -auto-approve -var="your_variable_name=${{ secrets.AWS_ACCOUNT_ID }}"
           echo "destroy_success=true" >> $GITHUB_OUTPUT
         working-directory: infra
 
