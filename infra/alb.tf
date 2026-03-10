@@ -24,7 +24,7 @@ resource "aws_lb_target_group" "ms_video" {
     protocol            = "HTTP"
     healthy_threshold   = 2
     unhealthy_threshold = 3
-    timeout             = 5
+    timeout             = 10
     interval            = 30
     matcher             = "200"
   }

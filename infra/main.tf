@@ -114,9 +114,9 @@ resource "aws_ecs_task_definition" "ms_video" {
       healthCheck = {
         command     = ["CMD-SHELL", "curl -f http://localhost:${var.ms_video_port}/actuator/health || exit 1"]
         interval    = 30
-        timeout     = 5
+        timeout     = 10
         retries     = 3
-        startPeriod = 60
+        startPeriod = 120
       }
     }
   ])
@@ -210,6 +210,8 @@ resource "aws_ecs_service" "ms_video" {
     aws_lb_listener.http,
     aws_iam_role_policy_attachment.ecs_task_role_policy
   ]
+
+  health_check_grace_period_seconds = 120
 
   tags = var.tags
 
