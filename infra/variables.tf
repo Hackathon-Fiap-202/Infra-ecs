@@ -85,9 +85,9 @@ variable "aws_account_id" {
 }
 
 variable "task_cpu" {
-  description = "CPU units for ECS tasks (2048 = 2 vCPU)"
+  description = "CPU units for ECS tasks (4096 = 4 vCPU)"
   type        = string
-  default     = "2048"
+  default     = "4096"
 }
 
 variable "task_memory" {
