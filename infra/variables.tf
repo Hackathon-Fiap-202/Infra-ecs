@@ -76,7 +76,7 @@ variable "ms_video_desired_count" {
 variable "process_video_desired_count" {
   description = "Desired task count for process-video"
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "aws_account_id" {
