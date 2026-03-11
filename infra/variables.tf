@@ -98,9 +98,9 @@ variable "task_memory" {
 
 # ─── Datadog ──────────────────────────────────────────────────────────────────
 variable "dd_site" {
-  description = "Datadog intake site — datadoghq.com (US) or datadoghq.eu (EU)"
+  description = "Datadog intake site — datadoghq.com (US) or datadoghq.eu (EU) or us5.datadoghq.com"
   type        = string
-  default     = "datadoghq.com"
+  default     = "us5.datadoghq.com"
 }
 
 variable "datadog_api_key_secret_arn" {
