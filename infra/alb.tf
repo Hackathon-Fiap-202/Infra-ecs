@@ -17,6 +17,9 @@ resource "aws_lb_target_group" "ms_video" {
   vpc_id      = local.vpc_id
   target_type = "ip"
 
+  # Acelera a finalização das instâncias antigas no deploy (padrão é 300s)
+  deregistration_delay = 30
+
   health_check {
     enabled             = true
     path                = "/actuator/health"
@@ -25,7 +28,7 @@ resource "aws_lb_target_group" "ms_video" {
     healthy_threshold   = 2
     unhealthy_threshold = 3
     timeout             = 10
-    interval            = 30
+    interval            = 15
     matcher             = "200"
   }
 

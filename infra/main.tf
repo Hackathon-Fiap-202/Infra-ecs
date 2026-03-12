@@ -100,9 +100,10 @@ resource "aws_ecs_task_definition" "ms_video" {
     # Routes application logs to Datadog. Its own logs go to CloudWatch.
     [
       {
-        name      = "log_router"
-        image     = "amazon/aws-for-fluent-bit:stable"
-        essential = true
+        name        = "log_router"
+        image       = "amazon/aws-for-fluent-bit:stable"
+        essential   = true
+        stopTimeout = 120
 
         firelensConfiguration = {
           type = "fluentbit"
@@ -221,6 +222,7 @@ resource "aws_ecs_task_definition" "ms_video" {
           options = {
             Name       = "datadog"
             apikey     = data.aws_secretsmanager_secret_version.datadog_api_key[0].secret_string
+            host       = "http-intake.logs.${var.dd_site}"
             dd_service = "ms-video"
             dd_source  = "java"
             dd_tags    = "env:prod,version:1.0"
@@ -265,9 +267,10 @@ resource "aws_ecs_task_definition" "process_video" {
     # ── 1. FireLens log router ────────────────────────────────────────────────
     [
       {
-        name      = "log_router"
-        image     = "amazon/aws-for-fluent-bit:stable"
-        essential = true
+        name        = "log_router"
+        image       = "amazon/aws-for-fluent-bit:stable"
+        essential   = true
+        stopTimeout = 120
 
         firelensConfiguration = {
           type = "fluentbit"
@@ -364,6 +367,7 @@ resource "aws_ecs_task_definition" "process_video" {
           options = {
             Name       = "datadog"
             apikey     = data.aws_secretsmanager_secret_version.datadog_api_key[0].secret_string
+            host       = "http-intake.logs.${var.dd_site}"
             dd_service = "process-video"
             dd_source  = "java"
             dd_tags    = "env:prod,version:1.0"
