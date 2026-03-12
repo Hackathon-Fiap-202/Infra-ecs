@@ -8,8 +8,8 @@ resource "aws_appautoscaling_target" "ms_video" {
   service_namespace  = "ecs"
   resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.ms_video.name}"
   scalable_dimension = "ecs:service:DesiredCount"
-  min_capacity       = 1
-  max_capacity       = 2
+  min_capacity       = 2
+  max_capacity       = 4
 }
 
 resource "aws_appautoscaling_policy" "ms_video_cpu" {
