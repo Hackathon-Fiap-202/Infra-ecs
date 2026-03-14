@@ -9,13 +9,18 @@ output "ecs_cluster_arn" {
 }
 
 output "alb_dns_name" {
-  description = "Internal ALB DNS name (used by API Gateway VPC Link)"
+  description = "Internal ALB DNS name"
   value       = aws_lb.this.dns_name
 }
 
 output "alb_arn" {
   description = "Internal ALB ARN"
   value       = aws_lb.this.arn
+}
+
+output "alb_listener_arn" {
+  description = "HTTP listener ARN (used by API Gateway VPC Link integration)"
+  value       = aws_lb_listener.http.arn
 }
 
 output "ms_video_service_name" {
