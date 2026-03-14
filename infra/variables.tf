@@ -76,10 +76,35 @@ variable "ms_video_desired_count" {
 variable "process_video_desired_count" {
   description = "Desired task count for process-video"
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "aws_account_id" {
   description = "AWS Account ID"
   type        = string
+}
+
+variable "task_cpu" {
+  description = "CPU units for ECS tasks (4096 = 4 vCPU)"
+  type        = string
+  default     = "4096"
+}
+
+variable "task_memory" {
+  description = "Memory in MB for ECS tasks"
+  type        = string
+  default     = "8192"
+}
+
+# ─── Datadog ──────────────────────────────────────────────────────────────────
+variable "dd_site" {
+  description = "Datadog intake site — datadoghq.com (US) or datadoghq.eu (EU) or us5.datadoghq.com"
+  type        = string
+  default     = "us5.datadoghq.com"
+}
+
+variable "datadog_api_key_secret_arn" {
+  description = "Fallback ARN for the Datadog API key secret. Normally resolved automatically from infra-core remote state. Set this only if infra-core has not been applied yet and the remote state output does not exist."
+  type        = string
+  default     = ""
 }
